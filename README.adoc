@@ -3,6 +3,7 @@
 Goal of this application is a tool to apply a personal accounts model for finance management. Based on this model, recurring pre-configured transactions can be executed easily, e.g. on a monthly basis. The transactions can either be absolute or relative, e.g. 10% of your monthly income.
 
 == Example config file
+
 .job.json
 [source,json]
 ----
@@ -64,6 +65,17 @@ This field is mandatory for transactions to other banks only, otherwise will be 
 This field is mandatory, if the target account is a local or other banks IBAN. Otherwise will be ignored.
 |===
 
+== How to use
+=== Prerequesites
+* Python3
+** Packages: pip install readchar robobrowser lxml prettytable
+
+=== Execute
+After adding a 'job.json' config file (see above), just run:
+
+`python3 dispatchIncome`
+
 == Out of scope
+
 * BIC support: Currently, the capability to transfer money to international bank accounts (where BIC is needed) is not supported.
 
