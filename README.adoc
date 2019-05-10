@@ -1,2 +1,69 @@
 = Banking accounts model
-Goal of this application is a tool to apply a personal accounts model for finance management.
+
+Goal of this application is a tool to apply a personal accounts model for finance management. Based on this model, recurring pre-configured transactions can be executed easily, e.g. on a monthly basis. The transactions can either be absolute or relative, e.g. 10% of your monthly income.
+
+== Example config file
+.job.json
+[source,json]
+----
+{
+    "dispatch": [
+        {
+            "Name": "Savings",
+            "Share": 10,
+            "SourceAccount": "DE12345678901234567890",
+            "TargetAccount": "DE09876543210987654321",
+            "Remittee": "Mickey Mouse",
+            "Description": "Monthly savings"
+        },
+        {
+            "Name": "Creditcard deposit",
+            "Share": 15,
+            "SourceAccount": "DE12345678901234567890",
+            "TargetAccount": "1111********1111"
+        },
+        {
+            "Name": "House rent",
+            "ShareValue": 500,
+            "SourceAccount": "DE12345678901234567890",
+            "TargetAccount": "DE09876543210987654321",
+            "Remittee": "Mickey Mouse",
+            "Description": "House rent"
+        }
+}
+----
+
+.Table 'job.json' field description
+|===
+|Field |Description
+
+|_Name_
+|Transaction name - for information purpose only
+
+|_Share_ or _ShareValue_
+|Transaction amount. Either absolute EUR value (_ShareValue_) or percentage of income (_Share_). If _Share_ is set, the application asks for the income at the beginning.
+
+|_SourceAccount_
+|Either an IBAN or credit card within your DKB account. This account will be debited. +
+Format IBAN: <Country code><20 digit iban number> - no spaces allowed +
+Format credit card: <4 digits><8 asterisks><4 digits> - no spaces allowed +
+If credit card is chosen, the associated checking account must be selected in _TargetAccount_, because credit cards are strictly bound to a single checking account within DKB. To find out, which checking account is the correct one, login to your DKB banking and try to initiate a transaction from your credit card.
+
+|_TargetAccount_
+|Either an IBAN or credit card. This account will be credited.
+Format IBAN: <Country code><20 digit iban number> - no spaces allowed +
+Format credit card: <4 digits><8 asterisks><4 digits> - no spaces allowed +
+If credit card is chose, the associated checking account must be selected in _SourceAccount_, because credit cards are strictly bound to a single checking account within DKB. To find out, which checking account is the correct one, login to your DKB banking and try to initiate a transaction to your credit card.
+
+|_Remittee_
+|Name of the depited person or company. +
+This field is mandatory for transactions to other banks only, otherwise will be ignored.
+
+|_Description_
+|Transaction purpose line. +
+This field is mandatory, if the target account is a local or other banks IBAN. Otherwise will be ignored.
+|===
+
+== Out of scope
+* BIC support: Currently, the capability to transfer money to international bank accounts (where BIC is needed) is not supported.
+

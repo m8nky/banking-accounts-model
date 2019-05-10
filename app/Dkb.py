@@ -13,6 +13,19 @@ class Dkb:
     ACCTYPE_CHECKING = 'CHECKING'
     ACCTYPE_CREDITCARD = 'CREDITCARD'
 
+    # Source: DKB IBAN
+    # Target: DKB IBAN
+    TRANSACTIONTYPE_CHECKING_CHECKING_LOCAL = 'CHECKING_CHECKING_LOCAL'
+    # Source: DKB IBAN
+    # Target: Other bank IBAN
+    TRANSACTIONTYPE_CHECKING_CHECKING_REMOTE = 'CHECKING_CHECKING_REMOTE'
+    # Source: DKB IBAN
+    # Target: DKB CreditCard
+    TRANSACTIONTYPE_CHECKING_CREDITCARD = 'CHECKING_CREDITCARD'
+    # Source: DKB CreditCard
+    # Target: DKB IBAN
+    TRANSACTIONTYPE_CREDITCARD_CHECKING = 'CREDITCARD_CHECKING'
+
     def __init__(self):
         self._logger = logging.getLogger(self.__class__.__name__)
         browser = RoboBrowser(parser='lxml')
@@ -68,7 +81,28 @@ class Dkb:
         return self._accounts[account]['balance']
 
     def remittance(self, source, target, amount, creditorName=None, purpose=None):
+        # Sanitize input
         assert source in self._accounts
+        assert re.match(r'([A-Z]{2}[0-9]{20})|([0-9]{4}\*{8}[0-9]{4})', target)
+        transaction_type = None
+        if source in self._accounts and self._accounts[source]['type'] == Dkb.ACCTYPE_CHECKING:
+            if not target in self._accounts:
+                transaction_type = Dkb.TRANSACTIONTYPE_CHECKING_CHECKING_REMOTE
+            elif self._accounts[target]['type'] == Dkb.ACCTYPE_CHECKING:
+                transaction_type = Dkb.TRANSACTIONTYPE_CHECKING_CHECKING_LOCAL
+            elif self._accounts[target]['type'] == Dkb.ACCTYPE_CREDITCARD:
+                transaction_type = Dkb.TRANSACTIONTYPE_CHECKING_CREDITCARD
+        if source in self._accounts and self._accounts[source]['type'] == Dkb.ACCTYPE_CREDITCARD:
+            if target in self._accounts and self._accounts[target]['type'] == Dkb.ACCTYPE_CHECKING:
+                transaction_type = Dkb.TRANSACTIONTYPE_CREDITCARD_CHECKING
+        assert transaction_type is not None
+        # Check parameters
+        if transaction_type == Dkb.TRANSACTIONTYPE_CHECKING_CHECKING_REMOTE:
+            assert type(creditorName) is str and len(creditorName) > 0
+            assert type(purpose) is str and len(purpose) > 0
+        if transaction_type == Dkb.TRANSACTIONTYPE_CHECKING_CHECKING_LOCAL:
+            assert type(purpose) is str and len(purpose) > 0
+        # Source or target account constellation is not allowed
         amount = Amount(amount)
         # Navigate to account overview and select source account
         self._browser.open(Dkb.BASEURL + Dkb.SERVICE_FINANCIAL_STATUS)
@@ -85,53 +119,49 @@ class Dkb:
         if not len(remittance) > 0:
             raise WebsiteNotLoadable("Remittance element not found for '" + source + "'.")
         self._browser.follow_link(remittance[0])
-        # Skip step 2 (transaction details for creditcard to checking account transactions) - go directly to step 3
-        if self._accounts[source]['type'] == Dkb.ACCTYPE_CREDITCARD:
+        if transaction_type == Dkb.TRANSACTIONTYPE_CREDITCARD_CHECKING:
+            # For creditcard to checking transactions, skip step 2 - go directly to step 3
             ### Step 3- Amount input and transaction review
             self._creditCardRemittance(amount)
             self._currentTransaction = self._reviewCreditcardToCheckingRemittance()
-            return self._currentTransaction
-        ### Step 2 - Account selector and transaction details
-        form = self._browser.get_forms()[2]
-        assert form is not None
-        # Check if target account is hosted by this DKB account ('own account')
-        accountLabel = None
-        for al in form['slOwnCreditorAccounts'].labels:
-            if re.match(re.sub(r'\*', '', target), re.sub(r'[\s\*]', '', al)):
-                # Success, target account is local
-                accountLabel = al
-                break
-        if accountLabel:
-            # Select 'own account' (option: 2) transaction
-            form['creditorAccountType'].options = ['2']
-            form['creditorAccountType'].value = '2'
-            # Select target account
-            form['slOwnCreditorAccounts'].value = accountLabel
-        # Account is not local - do transaction to another bank
         else:
-            # Select 'foreign account' (option: 1) transaction
-            form['creditorAccountType'].options = ['1']
-            form['creditorAccountType'].value = '1'
-            # Fill in target account information
-            assert creditorName
-            form['creditorName'].value = creditorName
-            form['creditorAccountNo'].value = target
-        # Submit and proceed with step 3
-        self._browser.submit_form(form)
-        ### Step 3 - Amount input and transaction review
-        if target in self._accounts and self._accounts[target]['type'] == Dkb.ACCTYPE_CREDITCARD:
-            # Target account is creditcard
-            self._creditCardRemittance(amount)
-            self._currentTransaction = self._reviewCheckingToCreditcardRemittance()
-            return self._currentTransaction
-        elif target not in self._accounts or (target in self._accounts and self._accounts[target]['type'] == Dkb.ACCTYPE_CHECKING):
-            # Target account is checking
-            assert purpose
-            self._checkingRemittance(amount, purpose)
-            self._currentTransaction = self._reviewCheckingRemittance()
-            return self._currentTransaction
-        # Should never be reached!
-        assert False
+            ### Step 2 - Account selector and transaction details
+            form = self._browser.get_forms()[2]
+            assert form is not None
+            # Check if target account is hosted by this DKB account ('own account')
+            accountLabel = None
+            for al in form['slOwnCreditorAccounts'].labels:
+                if re.match(re.sub(r'\*', '', target), re.sub(r'[\s\*]', '', al)):
+                    # Success, target account is local
+                    accountLabel = al
+                    break
+            if accountLabel:
+                # Select 'own account' (option: 2) transaction
+                form['creditorAccountType'].options = ['2']
+                form['creditorAccountType'].value = '2'
+                # Select target account
+                form['slOwnCreditorAccounts'].value = accountLabel
+            else:
+                # Account is not local - do transaction to another bank
+                # Select 'foreign account' (option: 1) transaction
+                form['creditorAccountType'].options = ['1']
+                form['creditorAccountType'].value = '1'
+                # Fill in target account information
+                form['creditorName'].value = creditorName
+                form['creditorAccountNo'].value = target
+            # Submit and proceed with step 3
+            self._browser.submit_form(form)
+            ### Step 3 - Amount input and transaction review
+            if transaction_type == Dkb.TRANSACTIONTYPE_CHECKING_CREDITCARD:
+                # Target account is creditcard
+                self._creditCardRemittance(amount)
+                self._currentTransaction = self._reviewCheckingToCreditcardRemittance()
+            else:
+                # transaction_type in [ Dkb.TRANSACTIONTYPE_CHECKING_CHECKING_LOCAL, Dkb.TRANSACTIONTYPE_CHECKING_CHECKING_REMOTE ]
+                # Target account is checking
+                self._checkingRemittance(amount, purpose)
+                self._currentTransaction = self._reviewCheckingRemittance()
+        return self._currentTransaction
 
     def approveCurrentTransaction(self, source, target, amount, tan=None):
         if source != self._currentTransaction['source'] or target != self._currentTransaction['target'] or amount != self._currentTransaction['amount']:
