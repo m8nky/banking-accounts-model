@@ -1,0 +1,2 @@
+= Banking accounts model
+Goal of this application is a tool to apply a personal accounts model for finance management.

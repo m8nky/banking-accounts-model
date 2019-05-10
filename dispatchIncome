@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+import sys
+import os
+sys.path.append(os.getcwd() + '/app')
+import logging
+import re
+import readchar
+from getpass import getpass
+from prettytable import PrettyTable
+
+import config
+from Job import Job
+from Dkb import Dkb
+
+class DispatchIncome:
+    INCOME_MULTIPLE_OF = 50
+
+    def __init__(self):
+        self._logger = logging.getLogger(self.__class__.__name__)
+        self._income = None
+
+    def run(self):
+        jobs = Job()
+        if jobs.hasRelativeShare():
+            while True:
+                try:
+                    income = int(input("Shared income (multiple of " + str(DispatchIncome.INCOME_MULTIPLE_OF) + "): "))
+                    income = income - income % DispatchIncome.INCOME_MULTIPLE_OF
+                    if income > 0:
+                        break
+                except KeyboardInterrupt:
+                    return False
+                except:
+                    continue
+            self._logger.info("Base income for transaction share: " + str(income))
+            self._income = income
+        # Inquire login information.
+        self._login = self._getLoginInfo()
+        if not self._login:
+            return False
+        # Calculate absolute split values
+        jobs.calculateShareValue(self._income)
+        # Review split jobs.
+        if not self._review(jobs):
+            return False
+        # Initiate all remittance jobs
+        if not self._remitAll(jobs):
+            return False
+        return True
+
+    def _getLoginInfo(self):
+        self._logger.info("## Inquire login information.")
+        try:
+            userid = input("Login name: ")
+            pin = getpass(prompt="PIN: ")
+            if len(userid) > 0 and len(pin) > 0:
+                return { 'userid': userid, 'pin': pin }
+        except KeyboardInterrupt:
+            pass
+        return None
+
+    def _review(self, jobs):
+        self._logger.info("## Review jobs.")
+        review = PrettyTable(['Name', 'Share', 'Value'])
+        review.align['Name'] = 'l'
+        for job in jobs.getJobs():
+            name = job[Job.JOB_NAME]
+            share = job[Job.JOB_SHARE] if Job.JOB_SHARE in job else None
+            account = job[Job.JOB_TARGETACCOUNT]
+            shareValue = job[Job.JOB_SHAREVALUE]
+            review.add_row([name, share, shareValue])
+        try:
+            print(str(review) + "\nType [y] to initiate transactions...")
+            k = readchar.readchar()
+        except KeyboardInterrupt:
+            return False
+        if k.lower() == 'y':
+            return True
+        return False
+
+    def _remitAll(self, jobs):
+        self._logger.info("## Start transaction jobs.")
+        dkb = Dkb()
+        dkb.login(self._login['userid'], self._login['pin'])
+        for job in jobs.getJobs():
+            self._logger.info("## Initiate transaction for '" + job[Job.JOB_NAME] + "'.")
+            # Initiate transaction
+            creditor = job[Job.JOB_REMITTEE] if Job.JOB_REMITTEE in job else None
+            description = job[Job.JOB_DESCRIPTION] if Job.JOB_DESCRIPTION in job else None
+            try:
+                transaction = dkb.remittance(job[Job.JOB_SOURCEACCOUNT], job[Job.JOB_TARGETACCOUNT], job[Job.JOB_SHAREVALUE], creditor, description)
+            except BalanceNotSufficient:
+                # Not enough balance for this transaction, continue with further transactions.
+                continue
+            # Is TAN requested (checking -> checking transactions)
+            withTan = True if 'tan' in transaction else False
+            # Do review and ask for TAN, if needed.
+            review = PrettyTable(['Source', 'Target', 'Amount'])
+            review.align['Source'] = 'l'
+            review.align['Target'] = 'l'
+            review.align['Amount'] = 'l'
+            review.add_row([transaction['source'], transaction['target'], transaction['amount']])
+            commit = False
+            try:
+                if withTan:
+                    print(str(review))
+                    while(True):
+                        tan = input("TAN: ")
+                        if re.match(r'[0-9]{6}', tan):
+                            commit = True
+                            break
+                else:
+                    print(str(review) + "\nType [y] to commit transaction...")
+                    k = readchar.readchar()
+                    if k.lower() == 'y':
+                        commit = True
+            except KeyboardInterrupt:
+                pass
+            if not commit:
+                self._logger.info("Transaction aborted...")
+                try:
+                    print("Press ENTER to continue with further transactions...")
+                    readchar.readchar()
+                except KeyboardInterrupt:
+                    dkb.logout()
+                    return False
+            if withTan:
+                dkb.approveCurrentTransaction(transaction['source'], transaction['target'], transaction['amount'], tan)
+            else:
+                dkb.approveCurrentTransaction(transaction['source'], transaction['target'], transaction['amount'])
+        dkb.logout()
+        return True
+
+if __name__ == "__main__":
+    di = DispatchIncome()
+    if not di.run():
+        sys.exit(1)
