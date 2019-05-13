@@ -4,6 +4,12 @@ Goal of this application is a tool to apply a personal accounts model for financ
 
 == Example config file
 
+Let's assume we have the following remittance jobs:
+
+* Transfer 10% of your income to savings - from: DE12345678901234567890 to: DE09876543210987654321
+* Transfer 15% of your income to the credit card - from: DE12345678901234567890 to: 1111pass:[********]1111
+* Transfer 500 EUR rent to your landlord - from: DE12345678901234567890 to: DE09876543210987654321
+
 .job.json
 [source,json]
 ----
@@ -31,6 +37,7 @@ Goal of this application is a tool to apply a personal accounts model for financ
             "Remittee": "Mickey Mouse",
             "Description": "House rent"
         }
+    ]
 }
 ----
 
@@ -48,13 +55,13 @@ Goal of this application is a tool to apply a personal accounts model for financ
 |Either an IBAN or credit card within your DKB account. This account will be debited. +
 Format IBAN: <Country code><20 digit iban number> - no spaces allowed +
 Format credit card: <4 digits><8 asterisks><4 digits> - no spaces allowed +
-If credit card is chosen, the associated checking account must be selected in _TargetAccount_, because credit cards are strictly bound to a single checking account within DKB. To find out, which checking account is the correct one, login to your DKB banking and try to initiate a transaction from your credit card.
+If credit card is chosen, the associated checking account must be selected in _TargetAccount_, because credit cards are strictly bound to a single checking account within DKB. To find out, which checking account is the correct one, login to your DKB banking and try to initiate a transaction to your credit card.
 
 |_TargetAccount_
 |Either an IBAN or credit card. This account will be credited.
 Format IBAN: <Country code><20 digit iban number> - no spaces allowed +
 Format credit card: <4 digits><8 asterisks><4 digits> - no spaces allowed +
-If credit card is chose, the associated checking account must be selected in _SourceAccount_, because credit cards are strictly bound to a single checking account within DKB. To find out, which checking account is the correct one, login to your DKB banking and try to initiate a transaction to your credit card.
+If credit card is chosen, the associated checking account must be selected in _SourceAccount_, because credit cards are strictly bound to a single checking account within DKB. To find out, which checking account is the correct one, login to your DKB banking and try to initiate a transaction to your credit card.
 
 |_Remittee_
 |Name of the depited person or company. +
