@@ -1,5 +1,6 @@
 import logging
 import json
+import re
 
 from config import c
 
@@ -37,10 +38,26 @@ class Job:
             if not Job.JOB_SHAREVALUE in job:
                 job[Job.JOB_SHAREVALUE] = income * job[Job.JOB_SHARE] // 100
 
-
     def _validate(self):
         valid = True
+        sumShare = 0
         for j in self._jobs:
             if not (Job.JOB_NAME in j and Job.JOB_SOURCEACCOUNT in j and ((Job.JOB_SHARE in j) ^ (Job.JOB_SHAREVALUE in j)) and Job.JOB_TARGETACCOUNT in j):
+                self._logger.error("'job.json' is invalid: Missing fields.")
                 valid = False
+                continue
+            if len(j[Job.JOB_NAME]) <= 0:
+                self._logger.error("'job.json' is invalid: Job name not set.")
+                valid = False
+                continue
+            reAccount = re.compile(r'([A-Z]{2}\d{20})|(\d{4}\*{8}\d{4})')
+            if not reAccount.match(j[Job.JOB_SOURCEACCOUNT]) or not reAccount.match(j[Job.JOB_TARGETACCOUNT]):
+                self._logger.error("'job.json' is invalid: TargetAccount or SourceAccount missing or invalid.")
+                valid = False
+                continue
+            if Job.JOB_SHARE in j:
+                sumShare += j[Job.JOB_SHARE]
+        if sumShare > 100:
+            self._logger.error("'job.json' is invalid: Sum of shares is greater than 100%")
+            valid = False
         return valid

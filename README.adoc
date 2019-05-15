@@ -75,7 +75,7 @@ This field is mandatory, if the target account is a local or other banks IBAN. O
 == How to use
 === Prerequesites
 * Python3
-** Packages: pip install readchar robobrowser lxml prettytable
+** Packages: pip install readchar robobrowser prettytable
 
 === Execute
 After adding a 'job.json' config file (see above), just run:
