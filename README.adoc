@@ -20,8 +20,7 @@ Let's assume we have the following remittance jobs:
             "Share": 10,
             "SourceAccount": "DE12345678901234567890",
             "TargetAccount": "DE09876543210987654321",
-            "Remittee": "Mickey Mouse",
-            "Description": "Monthly savings"
+            "Remittee": "Mickey Mouse"
         },
         {
             "Name": "Creditcard deposit",
@@ -35,7 +34,7 @@ Let's assume we have the following remittance jobs:
             "SourceAccount": "DE12345678901234567890",
             "TargetAccount": "DE09876543210987654321",
             "Remittee": "Mickey Mouse",
-            "Description": "House rent"
+            "Description": "Rent May 2019"
         }
     ]
 }
@@ -46,7 +45,7 @@ Let's assume we have the following remittance jobs:
 |Field |Description
 
 |_Name_
-|Transaction name - for information purpose only
+|Transaction name.
 
 |_Share_ or _ShareValue_
 |Transaction amount. Either absolute EUR value (_ShareValue_) or percentage of income (_Share_). If _Share_ is set, the application asks for the income at the beginning.
@@ -64,18 +63,19 @@ Format credit card: <4 digits><8 asterisks><4 digits> - no spaces allowed +
 If credit card is chosen, the associated checking account must be selected in _SourceAccount_, because credit cards are strictly bound to a single checking account within DKB. To find out, which checking account is the correct one, login to your DKB banking and try to initiate a transaction to your credit card.
 
 |_Remittee_
-|Name of the depited person or company. +
+|Name of the credited person or company. +
 This field is mandatory for transactions to other banks only, otherwise will be ignored.
 
 |_Description_
 |Transaction purpose line. +
-This field is mandatory, if the target account is a local or other banks IBAN. Otherwise will be ignored.
+This field can be set, if the target account is a local or other banks IBAN, otherwise will be ignored. +
+*REMARK: Omit this field for recurring transactions. Some banks, like DKB, reject transactions, if the purpose line has been used in other transactions before. If the field is not set, the purpose line is auto-generated using the 'Name' field and current timestamp.*
 |===
 
 == How to use
 === Prerequesites
 * Python3
-** Packages: pip install readchar robobrowser prettytable
+** Packages: pip install readchar robobrowser lxml prettytable
 
 === Execute
 After adding a 'job.json' config file (see above), just run:

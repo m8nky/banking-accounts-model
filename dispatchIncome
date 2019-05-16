@@ -4,6 +4,7 @@ import os
 sys.path.append(os.getcwd() + '/app')
 import logging
 import re
+import datetime
 import readchar
 from getpass import getpass
 from prettytable import PrettyTable
@@ -87,6 +88,8 @@ class DispatchIncome:
             # Initiate transaction
             creditor = job[Job.JOB_REMITTEE] if Job.JOB_REMITTEE in job else None
             description = job[Job.JOB_DESCRIPTION] if Job.JOB_DESCRIPTION in job else None
+            if not description:
+                description = job[Job.JOB_NAME] + " " + datetime.datetime.now().strftime("%Y.%m.%dT%H.%M.%S")
             try:
                 transaction = dkb.remittance(job[Job.JOB_SOURCEACCOUNT], job[Job.JOB_TARGETACCOUNT], job[Job.JOB_SHAREVALUE], creditor, description)
             except BalanceNotSufficient:

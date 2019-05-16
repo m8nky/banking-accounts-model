@@ -84,6 +84,9 @@ class Dkb:
         # Sanitize input
         assert source in self._accounts
         assert re.match(r'([A-Z]{2}[0-9]{20})|([0-9]{4}\*{8}[0-9]{4})', target)
+        # Update balance information
+        self._getAccounts()
+        # Determine transaction type (Giro -> CreditCard, Giro -> Giro, CreditCard -> Giro)
         transaction_type = None
         if source in self._accounts and self._accounts[source]['type'] == Dkb.ACCTYPE_CHECKING:
             if not target in self._accounts:
@@ -96,14 +99,15 @@ class Dkb:
             if target in self._accounts and self._accounts[target]['type'] == Dkb.ACCTYPE_CHECKING:
                 transaction_type = Dkb.TRANSACTIONTYPE_CREDITCARD_CHECKING
         assert transaction_type is not None
-        # Check parameters
+        # Sanitize remittance parameters
         if transaction_type == Dkb.TRANSACTIONTYPE_CHECKING_CHECKING_REMOTE:
             assert type(creditorName) is str and len(creditorName) > 0
             assert type(purpose) is str and len(purpose) > 0
         if transaction_type == Dkb.TRANSACTIONTYPE_CHECKING_CHECKING_LOCAL:
             assert type(purpose) is str and len(purpose) > 0
-        # Source or target account constellation is not allowed
+        # Get amount object
         amount = Amount(amount)
+        ### Sanitizing and preparation done - initiate transaction
         # Navigate to account overview and select source account
         self._browser.open(Dkb.BASEURL + Dkb.SERVICE_FINANCIAL_STATUS)
         accountSelector = self._browser.select('tr#gruppe-' + str(self._accounts[source]['group_idx']) + '_' + str(self._accounts[source]['row_idx']))
@@ -114,14 +118,14 @@ class Dkb:
             msg = "Balance of account '" + source + "' not sufficient to initiate transaction of " + amount.get() + " EUR."
             self._logger.warning("WARNING: " + msg)
             raise BalanceNotSufficient(msg)
-        # Navigate to transaction
+        # Navigate to transaction page of the designated source account
         remittance = accountSelector[0].select('a[tid="remittance"]')
         if not len(remittance) > 0:
             raise WebsiteNotLoadable("Remittance element not found for '" + source + "'.")
         self._browser.follow_link(remittance[0])
         if transaction_type == Dkb.TRANSACTIONTYPE_CREDITCARD_CHECKING:
             # For creditcard to checking transactions, skip step 2 - go directly to step 3
-            ### Step 3- Amount input and transaction review
+            ### Step 3 - Amount input and transaction review
             self._creditCardRemittance(amount)
             self._currentTransaction = self._reviewCreditcardToCheckingRemittance()
         else:
@@ -137,15 +141,29 @@ class Dkb:
                     break
             if accountLabel:
                 # Select 'own account' (option: 2) transaction
-                form['creditorAccountType'].options = ['2']
-                form['creditorAccountType'].value = '2'
+                ### REMARK: Current robobrowser forms serializer implementation stumbles over multiple radio select fields having the same name.
+                ###         As workaround, drop all select fields with the same name (poplist), choose the first one, that is enabled,
+                ###         set the value and reinsert this one to the forms processor.
+                for c in form.fields.poplist('creditorAccountType'):
+                    if not c.disabled:
+                        break
+                c.options = ['2']
+                c.value = '2'
+                form.fields.add('creditorAccountType', c)
                 # Select target account
                 form['slOwnCreditorAccounts'].value = accountLabel
             else:
                 # Account is not local - do transaction to another bank
                 # Select 'foreign account' (option: 1) transaction
-                form['creditorAccountType'].options = ['1']
-                form['creditorAccountType'].value = '1'
+                ### REMARK: Current robobrowser forms serializer implementation stumbles over multiple radio select fields having the same name.
+                ###         As workaround, drop all select fields with the same name (poplist), choose the first one, that is enabled,
+                ###         set the value and reinsert this one to the forms processor.
+                for c in form.fields.poplist('creditorAccountType'):
+                    if not c.disabled:
+                        break
+                c.options = ['1']
+                c.value = '1'
+                form.fields.add('creditorAccountType', c)
                 # Fill in target account information
                 form['creditorName'].value = creditorName
                 form['creditorAccountNo'].value = target
@@ -178,7 +196,9 @@ class Dkb:
             self._browser.submit_form(form)
             successBlock = self._browser.find(class_=re.compile(r'successBox', re.I))
             if not successBlock:
-                msg = "Transaction failed for '" + source + "' => '" + target + "' (" + amount + ")."
+                failBlock = self._browser.find(class_=re.compile(r'errorMessage', re.I))
+                msg = failBlock.ul.text if failBlock else ""
+                msg = "Transaction failed for '" + source + "' => '" + target + "' (" + amount + "). REASON: " + msg
                 self._logger.error("ERROR: " + msg)
                 raise TransactionFailed(msg)
             msg = successBlock.ul.li.text
